@@ -1,0 +1,11 @@
+[
+  {
+    "messages": [
+      "level=error msg='connection refused' service=api-gateway host=10.0.1.5",
+      "GET /health HTTP/1.1 status=200 response_time=5ms component=healthcheck",
+      "POST /users/42 status=403 msg='forbidden access' component=auth",
+      "DELETE /sessions/abc123 status=500 msg='internal server error'",
+      "GET /api/v1/metrics status=200 response_time=120ms component=prometheus"
+    ]
+  }
+]

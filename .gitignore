@@ -1,0 +1,45 @@
+.agent/
+__pycache__/
+*.pyc
+*.pyo
+.env
+_text.txt
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# MLflow — régénéré automatiquement par `python main.py`
+mlruns/
+
+# Modèles entraînés — versionnés via DVC ou stockés localement
+models/
+*.pkl
+*.joblib
+
+# DVC — fichiers cache locaux
+.dvc/cache/
+.dvc/tmp/
+
+# Data — versionnée via DVC (ne pas committer les CSV directement)
+data/*.csv
+data/production.csv
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Monitoring outputs (régénérés par monitor.ipynb)
+test_data.html
+production_data.html

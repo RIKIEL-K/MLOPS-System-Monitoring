@@ -1,131 +1,154 @@
 """
-steps/predict.py — Chargement du modèle et prédiction
+steps/predict.py — Classe Predictor
 
-Charge le modèle PyFunc depuis MLflow Registry ou depuis le fichier
-pickle local (models/log_clustering_model.pkl) et expose une fonction
-`predict()` utilisée par app.py (FastAPI).
+Charge le modèle (pickle local ou MLflow Registry) et expose
+evaluate() pour scorer le jeu de test, et predict() pour l'API FastAPI.
 """
 
+import logging
 import os
 import pickle
-from typing import Union
 
 import mlflow
 import mlflow.pyfunc
 import pandas as pd
 import yaml
+from sklearn.metrics import silhouette_score
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str = "config.yml") -> dict:
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def load_model_from_registry(model_name: str, tracking_uri: str,
-                              stage: str = "Production"):
+class Predictor:
     """
-    Charger le modèle depuis le MLflow Model Registry local.
+    Évalue le modèle sur le jeu de test et expose la prédiction pour l'API.
 
-    Args:
-        model_name:   Nom du modèle dans le Registry.
-        tracking_uri: URI du tracking MLflow local.
-        stage:        Stage souhaité ('Production', 'Staging', etc.)
-
-    Returns:
-        Modèle MLflow PyFunc chargé.
+    Usage:
+        predictor = Predictor()
+        results = predictor.evaluate(test_data)
+        predictions_df = predictor.predict(["log message 1", "log message 2"])
     """
-    mlflow.set_tracking_uri(tracking_uri)
-    model_uri = f"models:/{model_name}/{stage}"
-    print(f"[predict] Chargement depuis MLflow Registry : {model_uri}")
-    return mlflow.pyfunc.load_model(model_uri)
 
+    def __init__(self, config_path: str = "config.yml"):
+        with open(config_path, "r", encoding="utf-8") as f:
+            self.config = yaml.safe_load(f)
 
-def load_model_from_pickle(pickle_path: str = "models/log_clustering_model.pkl") -> dict:
-    """
-    Charger le modèle depuis le fichier pickle local (fallback).
+        self._model_data: dict | None = None
 
-    Args:
-        pickle_path: Chemin vers le fichier .pkl.
+    # ── API publique ────────────────────────────────────────────────────
 
-    Returns:
-        Dict contenant vectorizer, kmeans, cluster_labels, feature_names.
+    def evaluate(self, df: pd.DataFrame) -> dict:
+        """
+        Évaluer le modèle sur un jeu de test et retourner les métriques clés.
 
-    Raises:
-        FileNotFoundError: Si le fichier n'existe pas.
-    """
-    if not os.path.isfile(pickle_path):
-        raise FileNotFoundError(
-            f"Modèle introuvable : {pickle_path}\n"
-            "  → Lancez `python main.py` pour entraîner le modèle d'abord."
+        Métriques retournées (clustering non supervisé) :
+          - silhouette_score : cohésion des clusters (plus proche de 1 = mieux)
+          - anomaly_rate     : part des logs dans des clusters "Erreurs" (0–1)
+          - n_clusters       : nombre de clusters identifiés
+          - cluster_distribution : nombre de logs par cluster
+
+        Args:
+            df: DataFrame nettoyé avec la colonne `log_pattern`.
+
+        Returns:
+            Dict de métriques.
+        """
+        model_data = self._load_model()
+        vectorizer     = model_data["vectorizer"]
+        kmeans         = model_data["kmeans"]
+        cluster_labels = model_data["cluster_labels"]
+
+        X      = vectorizer.transform(df["log_pattern"])
+        preds  = kmeans.predict(X)
+        labels = [cluster_labels.get(int(p), "Unknown") for p in preds]
+
+        df = df.copy()
+        df["cluster_id"]    = preds
+        df["cluster_label"] = labels
+
+        # Silhouette score (nécessite au moins 2 clusters et 2 labels uniques)
+        try:
+            sil_score = float(silhouette_score(X, preds))
+        except ValueError:
+            sil_score = 0.0
+            logger.warning("Impossible de calculer le silhouette score (clusters insuffisants).")
+
+        # Anomaly rate : proportion de logs dans des clusters "Erreurs"
+        error_mask   = df["cluster_label"].str.contains("Erreurs", case=False, na=False)
+        anomaly_rate = float(error_mask.mean()) if len(df) > 0 else 0.0
+
+        # Distribution par cluster
+        cluster_dist = (
+            df.groupby("cluster_label").size()
+            .sort_values(ascending=False)
+            .to_dict()
         )
-    print(f"[predict] Chargement depuis pickle : {pickle_path}")
-    with open(pickle_path, "rb") as f:
-        return pickle.load(f)
 
+        results = {
+            "silhouette_score":       round(sil_score, 4),
+            "anomaly_rate":           round(anomaly_rate, 4),
+            "n_clusters":             kmeans.n_clusters,
+            "n_samples_evaluated":    len(df),
+            "cluster_distribution":   cluster_dist,
+        }
 
-def predict(messages: Union[list, pd.DataFrame],
-            config_path: str = "config.yml") -> pd.DataFrame:
-    """
-    Prédire le cluster de logs à partir de messages texte.
-
-    Essaie d'abord de charger via MLflow Registry, puis fallback sur pickle.
-
-    Args:
-        messages:    Liste de chaînes ou DataFrame avec colonne `message`.
-        config_path: Chemin vers config.yml.
-
-    Returns:
-        DataFrame avec colonnes `cluster_id` et `cluster_label`.
-    """
-    config = load_config(config_path)
-
-    # Normaliser l'input en DataFrame
-    if isinstance(messages, list):
-        input_df = pd.DataFrame({"message": messages})
-    elif isinstance(messages, pd.DataFrame):
-        input_df = messages
-    else:
-        input_df = pd.DataFrame({"message": [str(messages)]})
-
-    # Essayer MLflow Registry en premier
-    try:
-        model = load_model_from_registry(
-            model_name=config["mlflow"]["model_name"],
-            tracking_uri=config["mlflow"]["tracking_uri"],
+        logger.info(
+            "Évaluation — silhouette=%.3f | anomaly_rate=%.2f%% | n_clusters=%d",
+            sil_score, anomaly_rate * 100, kmeans.n_clusters,
         )
-        return model.predict(input_df)
+        return results
 
-    except Exception as mlflow_error:
-        print(f"[predict] MLflow Registry indisponible ({mlflow_error}), "
-              "fallback sur pickle local.")
+    def predict(self, messages: list | pd.DataFrame) -> pd.DataFrame:
+        """
+        Prédire le cluster de messages de logs (pour l'API FastAPI).
 
-    # Fallback : pickle local
-    model_data = load_model_from_pickle(
-        os.path.join(config["paths"]["models_dir"], "log_clustering_model.pkl")
-    )
+        Args:
+            messages: Liste de chaînes ou DataFrame avec colonne `message`.
 
-    from steps.clean import clean_message_for_inference
+        Returns:
+            DataFrame avec `cluster_id` et `cluster_label`.
+        """
+        from steps.clean import Cleaner
 
-    vectorizer     = model_data["vectorizer"]
-    kmeans         = model_data["kmeans"]
-    cluster_labels = model_data["cluster_labels"]
+        model_data     = self._load_model()
+        vectorizer     = model_data["vectorizer"]
+        kmeans         = model_data["kmeans"]
+        cluster_labels = model_data["cluster_labels"]
 
-    cleaned = [clean_message_for_inference(m) for m in input_df["message"].tolist()]
-    X_pred  = vectorizer.transform(cleaned)
-    preds   = kmeans.predict(X_pred)
-    labels  = [cluster_labels.get(int(p), "Unknown") for p in preds]
+        if isinstance(messages, pd.DataFrame):
+            msg_list = messages["message"].tolist()
+        elif isinstance(messages, list):
+            msg_list = messages
+        else:
+            msg_list = [str(messages)]
 
-    return pd.DataFrame({"cluster_id": preds.tolist(), "cluster_label": labels})
+        cleaned = [Cleaner.clean_message_for_inference(m) for m in msg_list]
+        X_pred  = vectorizer.transform(cleaned)
+        preds   = kmeans.predict(X_pred)
+        labels  = [cluster_labels.get(int(p), "Unknown") for p in preds]
 
+        return pd.DataFrame({"cluster_id": preds.tolist(), "cluster_label": labels})
 
-if __name__ == "__main__":
-    # Test rapide
-    test_messages = [
-        "level=error msg='connection refused' service=api",
-        "GET /health status=200 response_time=12ms",
-        "POST /users/42 status=403 msg='forbidden'",
-    ]
-    results = predict(test_messages)
-    print("\n=== Résultats de prédiction ===")
-    for msg, (_, row) in zip(test_messages, results.iterrows()):
-        print(f"  [{row['cluster_id']}] {row['cluster_label']} ← {msg[:60]}")
+    # ── Private ────────────────────────────────────────────────────────
+
+    def _load_model(self) -> dict:
+        """Charger le modèle depuis pickle (lazy loading avec cache)."""
+        if self._model_data is not None:
+            return self._model_data
+
+        pickle_path = os.path.join(
+            self.config["paths"]["models_dir"],
+            "log_clustering_model.pkl",
+        )
+
+        if not os.path.isfile(pickle_path):
+            raise FileNotFoundError(
+                f"Modèle introuvable : {pickle_path}\n"
+                "  → Lancez `python main.py` pour entraîner le modèle d'abord."
+            )
+
+        with open(pickle_path, "rb") as f:
+            self._model_data = pickle.load(f)
+
+        logger.info("Modèle chargé depuis : %s", pickle_path)
+        return self._model_data

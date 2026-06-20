@@ -4,10 +4,6 @@ app.py — API FastAPI pour le serving du modèle de clustering de logs
 Expose deux endpoints :
   - GET  /health  → Santé de l'API
   - POST /predict → Prédiction de cluster(s) pour un ou plusieurs messages
-
-Usage:
-    uvicorn app:app --reload
-    uvicorn app:app --host 0.0.0.0 --port 8000
 """
 
 from __future__ import annotations
@@ -80,8 +76,9 @@ def predict_logs(request: PredictRequest) -> PredictResponse:
     Retourne pour chaque message son cluster_id et un label interprétatif.
     """
     try:
-        from steps.predict import predict
-        results_df = predict(request.messages)
+        from steps.predict import Predictor
+        predictor  = Predictor()
+        results_df = predictor.predict(request.messages)
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:

@@ -1,0 +1,19 @@
+
+tfidf:
+  max_features: 100
+  min_df: 2
+  max_df: 0.95
+
+kmeans:
+  n_clusters: 5
+  n_init: 10
+  random_state: 42
+  k_range: "3,5,8,10,12,15"
+
+split:
+  test_size: 0.2
+  random_state: 42
+
+mlflow:
+  experiment_name: "log-clustering-local"
+  model_name: "log-clustering-kmeans"

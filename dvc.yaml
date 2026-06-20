@@ -1,0 +1,46 @@
+stages:
+
+  prepare:
+    cmd: python dataset.py
+    deps:
+      - dataset.py
+      - data/mock_loki_logs.csv
+    params:
+      - params.yaml:
+          - split.test_size
+          - split.random_state
+    outs:
+      - data/train.csv
+      - data/test.csv
+
+  train:
+    cmd: python main.py
+    deps:
+      - main.py
+      - steps/ingest.py
+      - steps/clean.py
+      - steps/train.py
+      - steps/predict.py
+      - data/train.csv
+      - data/test.csv
+      - config.yml
+    params:
+      - params.yaml:
+          - tfidf.max_features
+          - tfidf.min_df
+          - tfidf.max_df
+          - kmeans.n_clusters
+          - kmeans.n_init
+          - kmeans.random_state
+          - kmeans.k_range
+          - mlflow.experiment_name
+    outs:
+      - models/log_clustering_model.pkl
+    metrics:
+      - metrics.json:
+          cache: false
+    plots:
+      - plots/cluster_distribution.csv:
+          cache: false
+          x: cluster_label
+          y: count

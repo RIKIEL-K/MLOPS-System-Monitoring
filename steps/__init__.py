@@ -1,7 +1,7 @@
 
-from steps.ingest import load_data
-from steps.clean import clean_and_extract_patterns
-from steps.train import train_model
-from steps.predict import predict
+from steps.ingest import Ingestion
+from steps.clean import Cleaner
+from steps.train import Trainer
+from steps.predict import Predictor
 
-__all__ = ["load_data", "clean_and_extract_patterns", "train_model", "predict"]
+__all__ = ["Ingestion", "Cleaner", "Trainer", "Predictor"]

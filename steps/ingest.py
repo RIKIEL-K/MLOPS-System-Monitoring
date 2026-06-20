@@ -1,102 +1,79 @@
 """
-steps/ingest.py — Ingestion et validation des données de logs
+steps/ingest.py — Classe Ingestion
 
-Charge data/train.csv ou data/test.csv, valide le schéma attendu,
-et retourne un DataFrame propre prêt pour le nettoyage.
+Charge train.csv et test.csv, valide le schéma, et retourne deux DataFrames.
+Lit les chemins depuis config.yml et les paramètres de split depuis params.yaml (DVC).
 """
 
+import logging
 import os
-import sys
-from typing import Optional
 
 import pandas as pd
+import yaml
 
+logger = logging.getLogger(__name__)
 
-# Colonnes minimales requises dans le CSV de logs
 REQUIRED_COLUMNS = {
-    "message",
-    "level",
-    "status_code",
-    "method",
-    "endpoint",
-    "component",
-    "action",
-    "response_time_ms",
+    "message", "level", "status_code", "method",
+    "endpoint", "component", "action", "response_time_ms",
 }
 
-OPTIONAL_COLUMNS = {"timestamp", "logger", "message_raw"}
 
-
-def load_data(csv_path: str, validate: bool = True) -> pd.DataFrame:
+class Ingestion:
     """
-    Charger le dataset CSV des logs et valider son schéma.
+    Charge les données depuis config.yml et les valide.
 
-    Args:
-        csv_path: Chemin vers le fichier CSV.
-        validate: Si True, vérifie la présence des colonnes requises.
+    Usage:
+        ingestion = Ingestion()
+        train, test = ingestion.load_data()
     """
-    if not os.path.isfile(csv_path):
-        raise FileNotFoundError(
-            f"Dataset introuvable : {csv_path}\n"
-            "  → Lancez d'abord `python dataset.py` pour générer train.csv et test.csv."
-        )
 
-    print(f"[ingest] Lecture de : {csv_path}")
-    df = pd.read_csv(csv_path)
-    print(f"[ingest] {len(df):,} lignes chargées — {len(df.columns)} colonnes")
+    def __init__(self, config_path: str = "config.yml",
+                 params_path: str = "params.yaml"):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        self.train_path = cfg["paths"]["train_data"]
+        self.test_path  = cfg["paths"]["test_data"]
 
-    if validate:
-        _validate_schema(df, csv_path)
+    def load_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Charger et valider train.csv et test.csv.
 
-    # Forcer les types critiques
-    df["status_code"] = pd.to_numeric(df["status_code"], errors="coerce").fillna(0).astype(int)
-    df["response_time_ms"] = pd.to_numeric(df["response_time_ms"], errors="coerce").fillna(0.0)
+        Returns:
+            (train_df, test_df)
 
-    # Supprimer les lignes sans message
-    n_before = len(df)
-    df = df.dropna(subset=["message"])
-    if len(df) < n_before:
-        print(f"[ingest] {n_before - len(df)} lignes supprimées (message vide)")
+        Raises:
+            FileNotFoundError: Si l'un des fichiers est manquant.
+            ValueError: Si des colonnes requises sont absentes.
+        """
+        train = self._load_csv(self.train_path)
+        test  = self._load_csv(self.test_path)
+        logger.info("Train : %d lignes | Test : %d lignes", len(train), len(test))
+        return train, test
 
-    print(f"[ingest] ✓ Dataset valide — {len(df):,} lignes utilisables")
-    return df
+    def _load_csv(self, path: str) -> pd.DataFrame:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f"Dataset introuvable : {path}\n"
+                "  → Lancez `python dataset.py` ou `dvc repro prepare`."
+            )
 
+        df = pd.read_csv(path)
+        self._validate(df, path)
 
-def _validate_schema(df: pd.DataFrame, path: str) -> None:
-    """Vérifier que toutes les colonnes requises sont présentes."""
-    missing = REQUIRED_COLUMNS - set(df.columns)
-    if missing:
-        raise ValueError(
-            f"Colonnes manquantes dans {path} : {sorted(missing)}\n"
-            f"  Colonnes présentes : {sorted(df.columns.tolist())}"
-        )
+        df["status_code"]      = pd.to_numeric(df["status_code"],      errors="coerce").fillna(0).astype(int)
+        df["response_time_ms"] = pd.to_numeric(df["response_time_ms"], errors="coerce").fillna(0.0)
 
+        before = len(df)
+        df = df.dropna(subset=["message"])
+        if len(df) < before:
+            logger.warning("%d ligne(s) supprimée(s) — message vide dans %s",
+                           before - len(df), path)
+        return df
 
-def get_data_stats(df: pd.DataFrame) -> dict:
-    """
-    Calculer des statistiques descriptives sur le dataset.
-
-    Args:
-        df: DataFrame de logs.
-
-    Returns:
-        Dict de statistiques : n_rows, level_dist, status_dist, avg_response_time.
-    """
-    stats = {
-        "n_rows": len(df),
-        "level_distribution": df["level"].value_counts().to_dict(),
-        "status_code_distribution": df["status_code"].value_counts().head(10).to_dict(),
-        "avg_response_time_ms": round(df["response_time_ms"].mean(), 2),
-        "components": df["component"].unique().tolist() if "component" in df.columns else [],
-    }
-    return stats
-
-
-if __name__ == "__main__":
-    # Test rapide
-    path = sys.argv[1] if len(sys.argv) > 1 else "data/train.csv"
-    df = load_data(path)
-    stats = get_data_stats(df)
-    print("\n=== Statistiques ===")
-    for k, v in stats.items():
-        print(f"  {k}: {v}")
+    def _validate(self, df: pd.DataFrame, path: str) -> None:
+        missing = REQUIRED_COLUMNS - set(df.columns)
+        if missing:
+            raise ValueError(
+                f"Colonnes manquantes dans {path} : {sorted(missing)}"
+            )

@@ -5,21 +5,29 @@ UVICORN := uvicorn
 CONFIG  := config.yml
 
 .PHONY: setup dataset train serve mlflow-ui test docs \
-        dvc-init dvc-push lint clean help
+        dvc-init dvc-repro dvc-exp dvc-metrics dvc-plots lint clean help
 
 help:
 	@echo ""
 	@echo "  AIOps Log Clustering — Commandes disponibles"
 	@echo "  ─────────────────────────────────────────────"
-	@echo "  make setup       Installer les dépendances Python"
-	@echo "  make dataset     Générer data/train.csv et data/test.csv"
-	@echo "  make train       Entraîner le modèle (MLflow local)"
-	@echo "  make serve       Lancer l'API FastAPI (port 8000)"
-	@echo "  make mlflow-ui   Ouvrir l'interface MLflow (port 5000)"
-	@echo "  make test        Lancer les tests pytest"
-	@echo "  make docs        Lancer la documentation MkDocs (port 8001)"
-	@echo "  make dvc-init    Initialiser DVC dans le projet"
-	@echo "  make dvc-push    Versionner les données (DVC)"
+	@echo "  make setup        Installer les dépendances Python"
+	@echo "  make dataset      Générer data/train.csv et data/test.csv"
+	@echo "  make train        Entraîner le modèle (MLflow local)"
+	@echo "  make serve        Lancer l'API FastAPI (port 8000)"
+	@echo "  make mlflow-ui    Ouvrir l'interface MLflow (port 5000)"
+	@echo "  make test         Lancer les tests pytest"
+	@echo "  make docs         Lancer la documentation MkDocs (port 8001)"
+	@echo ""
+	@echo "  ── DVC ───────────────────────────────────────────"
+	@echo "  make dvc-init     Initialiser DVC + tracker les données"
+	@echo "  make dvc-repro    Relancer le pipeline (si changements)"
+	@echo "  make dvc-exp      Lancer une expérience DVC (ex: n_clusters=8)"
+	@echo "  make dvc-metrics  Voir les métriques de toutes les expériences"
+	@echo "  make dvc-plots    Visualiser la distribution des clusters"
+	@echo "  ──────────────────────────────────────────────────"
+	@echo "  make lint         Vérifier le style du code"
+	@echo "  make clean        Nettoyer les fichiers temporaires"
 	@echo ""
 
 setup:
@@ -45,9 +53,22 @@ docs:
 
 dvc-init:
 	dvc init
-	@echo "DVC initialisé. Configurez un remote avec : dvc remote add -d myremote <path>"
+	dvc add data/mock_loki_logs.csv
+	@echo "DVC initialisé et données trackées."
+	@echo "Configurez un remote : dvc remote add -d myremote <path>"
 
-dvc-push:
-	dvc add data/train.csv data/test.csv
-	dvc push
-	@echo "Données versionnées et poussées vers le remote DVC."
+dvc-repro:
+	dvc repro
+
+dvc-exp:
+	@echo "Exemple : dvc exp run -S kmeans.n_clusters=8"
+	@echo "Exemple : dvc exp run -S tfidf.max_features=150 -S kmeans.n_clusters=8"
+	dvc exp run
+
+dvc-metrics:
+	dvc metrics show
+	dvc metrics diff
+
+dvc-plots:
+	dvc plots show plots/cluster_distribution.csv
+

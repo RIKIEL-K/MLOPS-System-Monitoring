@@ -1,36 +1,21 @@
 
 paths:
-  train_data:  "data/train.csv"
-  test_data:   "data/test.csv"
-  models_dir:  "models"
-  output_dir:  "data"
+  train_data:   "data/train.csv"
+  test_data:    "data/test.csv"
+  raw_data:     "data/mock_loki_logs.csv"
+  models_dir:   "models"
+  metrics_file: "metrics.json"
+  plots_dir:    "plots"
+
 
 mlflow:
-  tracking_uri:    "./mlruns"
-  experiment_name: "log-clustering-local"
-  model_name:      "log-clustering-kmeans"
-  artifact_path:   "loki_pipeline_model"
-
-tfidf:
-  max_features: 100
-  min_df:       2
-  max_df:       0.95
-
-kmeans:
-  n_clusters:   5
-  n_init:       10
-  random_state: 42
-  k_range:      "3,5,8,10,12,15"
-
-split:
-  test_size:    0.2
-  random_state: 42
-
+  tracking_uri:  "./mlruns"
+  artifact_path: "loki_pipeline_model"
 
 api:
   host: "0.0.0.0"
   port: 8000
 
 monitoring:
-  reference_data: "data/train.csv"
+  reference_data:  "data/train.csv"
   production_data: "data/production.csv"

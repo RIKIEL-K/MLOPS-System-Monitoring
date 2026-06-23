@@ -1,14 +1,10 @@
 """
 dataset.py — Génère data/train.csv et data/test.csv
 
-Lit le dataset brut (mock_loki_logs.csv), effectue un split 80/20,
-et produit les deux fichiers cibles.
+Lit le dataset brut, effectue un split 80/20.
 
 Les paramètres de split sont lus depuis params.yaml (DVC).
 
-Usage:
-    python dataset.py
-    dvc repro prepare
 """
 
 import argparse

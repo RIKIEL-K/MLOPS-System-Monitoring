@@ -9,24 +9,21 @@ CONFIG  := config.yml
 
 help:
 	@echo ""
-	@echo "  AIOps Log Clustering — Commandes disponibles"
-	@echo "  ─────────────────────────────────────────────"
-	@echo "  make setup        Installer les dépendances Python"
-	@echo "  make dataset      Générer data/train.csv et data/test.csv"
-	@echo "  make train        Entraîner le modèle (MLflow local)"
+	@echo "  Commandes disponibles"
+	@echo "  ---------------------------------------------"
+	@echo "  make setup        Installer les dependances Python"
+	@echo "  make dataset      Generer data/train.csv et data/test.csv"
+	@echo "  make train        Entrainer le modele (MLflow local)"
 	@echo "  make serve        Lancer l'API FastAPI (port 8000)"
 	@echo "  make mlflow-ui    Ouvrir l'interface MLflow (port 5000)"
-	@echo "  make test         Lancer les tests pytest"
 	@echo "  make docs         Lancer la documentation MkDocs (port 8001)"
 	@echo ""
-	@echo "  ── DVC ───────────────────────────────────────────"
-	@echo "  make dvc-init     Initialiser DVC + tracker les données"
+	@echo "  -- DVC -------------------------------------------"
+	@echo "  make dvc-init     Initialiser DVC + tracker les donnees"
 	@echo "  make dvc-repro    Relancer le pipeline (si changements)"
-	@echo "  make dvc-exp      Lancer une expérience DVC (ex: n_clusters=8)"
-	@echo "  make dvc-metrics  Voir les métriques de toutes les expériences"
-	@echo "  make dvc-plots    Visualiser la distribution des clusters"
-	@echo "  ──────────────────────────────────────────────────"
-	@echo "  make lint         Vérifier le style du code"
+	@echo "  make dvc-exp      Lancer une experience DVC (ex: n_clusters=8)"
+	@echo "  --------------------------------------------------"
+	@echo "  make lint         Verifier le style du code"
 	@echo "  make clean        Nettoyer les fichiers temporaires"
 	@echo ""
 
@@ -43,10 +40,8 @@ serve:
 	$(UVICORN) app:app --host 0.0.0.0 --port 8000 --reload
 
 mlflow-ui:
+	$(PYTHON) -m webbrowser http://127.0.0.1:5000
 	mlflow ui --backend-store-uri ./mlruns --port 5000
-
-test:
-	pytest tests/ -v --tb=short
 
 docs:
 	mkdocs serve --dev-addr 0.0.0.0:8001
@@ -64,11 +59,6 @@ dvc-exp:
 	@echo "Exemple : dvc exp run -S kmeans.n_clusters=8"
 	@echo "Exemple : dvc exp run -S tfidf.max_features=150 -S kmeans.n_clusters=8"
 	dvc exp run
-
-dvc-metrics:
-	dvc metrics show
-	dvc metrics diff
-
+	
 dvc-plots:
 	dvc plots show plots/cluster_distribution.csv
-

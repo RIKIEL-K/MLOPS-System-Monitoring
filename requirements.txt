@@ -18,6 +18,8 @@ uvicorn[standard]==0.30.0
 
 # DVC (data versioning)
 dvc==3.50.0
+dvc-s3
+pathspec<0.12.0
 
 # Monitoring (optional — pour monitor.ipynb)
 evidently==0.4.30

@@ -27,6 +27,7 @@ models/
 # DVC — fichiers cache locaux
 .dvc/cache/
 .dvc/tmp/
+.dvc/config
 
 # Data — versionnée via DVC (ne pas committer les CSV directement)
 data/*.csv
@@ -43,3 +44,8 @@ htmlcov/
 # Monitoring outputs (régénérés par monitor.ipynb)
 test_data.html
 production_data.html
+
+metrics.json
+plots/*
+dvc.lock
+dvc_plots/

@@ -1,0 +1,84 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python dataset.py
+    deps:
+    - path: data/mock_loki_logs.csv
+      hash: md5
+      md5: 7ea6e536c498d284a6e4d002213a37a3
+      size: 301617
+    - path: dataset.py
+      hash: md5
+      md5: 12a94166892c6dc5486c72a78c90f941
+      size: 2470
+    params:
+      params.yaml:
+        split.random_state: 42
+        split.test_size: 0.2
+    outs:
+    - path: data/test.csv
+      hash: md5
+      md5: d447924e44712a4d268c404c16aae19f
+      size: 60281
+    - path: data/train.csv
+      hash: md5
+      md5: 332911646ad720511fbfa7f8028136af
+      size: 241441
+  train:
+    cmd: python main.py
+    deps:
+    - path: config.yml
+      hash: md5
+      md5: 06f7111ff4924bca64c60222a7ec2892
+      size: 399
+    - path: data/test.csv
+      hash: md5
+      md5: d447924e44712a4d268c404c16aae19f
+      size: 60281
+    - path: data/train.csv
+      hash: md5
+      md5: 332911646ad720511fbfa7f8028136af
+      size: 241441
+    - path: main.py
+      hash: md5
+      md5: a79c79b1ccd058fd9ae650e3ad60f63e
+      size: 4729
+    - path: steps/clean.py
+      hash: md5
+      md5: 48c9d000070d022cafd24b91b0c2b78a
+      size: 3316
+    - path: steps/ingest.py
+      hash: md5
+      md5: b3b183e1184a3bf38d393319b575a4bf
+      size: 2511
+    - path: steps/predict.py
+      hash: md5
+      md5: 2bb7714b7852df8d2d7656e80a90bcc0
+      size: 5488
+    - path: steps/train.py
+      hash: md5
+      md5: 9d36d7a1260ae6938610de1be0c59ae1
+      size: 14175
+    params:
+      params.yaml:
+        kmeans.k_range: 3,5,8,10,12,15
+        kmeans.n_clusters: 12
+        kmeans.n_init: 10
+        kmeans.random_state: 42
+        mlflow.experiment_name: log-clustering-local
+        tfidf.max_df: 0.95
+        tfidf.max_features: 150
+        tfidf.min_df: 2
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 97ad52a4f2a28f5c90e1198a0de02547
+      size: 228
+    - path: models/log_clustering_model.pkl
+      hash: md5
+      md5: fa4bab28015d230dff5b082a554683f1
+      size: 11452
+    - path: plots/cluster_distribution.csv
+      hash: md5
+      md5: ca34bbe6d3a081e0d3d7ba065db6353f
+      size: 299

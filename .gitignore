@@ -47,5 +47,4 @@ production_data.html
 
 metrics.json
 plots/*
-dvc.lock
 dvc_plots/
